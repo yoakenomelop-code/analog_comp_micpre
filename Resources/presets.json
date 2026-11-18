@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "module": {
+    "pre73": [
+      {"name": "初期値", "p": {}},
+      {"name": "ボーカル：抜け感", "p": {"variant": 1, "gain": 5, "hpf": 2, "lowFreq": 2, "lowGain": -2, "midFreq": 3, "midGain": 3, "highFreq": 2, "highGain": 3, "output": -1.5}},
+      {"name": "ボーカル：太く温かく", "p": {"gain": 10, "output": -9.5, "hpf": 1, "lowFreq": 2, "lowGain": 2.5, "midFreq": 1, "midGain": 1.5, "highGain": 1.5, "iron": 130}},
+      {"name": "キック：胴鳴り", "p": {"gain": 10, "output": -9, "lowFreq": 1, "lowGain": 5, "midFreq": 0, "midGain": -4, "highGain": 2}},
+      {"name": "スネア：アタック", "p": {"hpf": 2, "lowFreq": 3, "lowGain": 2, "midFreq": 4, "midGain": 3.5, "highGain": 2}},
+      {"name": "ベースDI：ブースト", "p": {"gain": 15, "output": -11.5, "lowFreq": 2, "lowGain": 3, "midFreq": 1, "midGain": 2, "highGain": -2, "iron": 140}},
+      {"name": "アコギ：きらめき", "p": {"variant": 1, "hpf": 2, "lowFreq": 3, "lowGain": -3, "midFreq": 4, "midGain": 1.5, "highFreq": 2, "highGain": 4, "output": 3.5}},
+      {"name": "ドラムバス：熱く", "p": {"gain": 15, "output": -8, "lowFreq": 1, "lowGain": 2, "midFreq": 3, "midGain": 2, "highGain": 2, "iron": 160, "headroom": 20}},
+      {"name": "ローファイ：汚し", "p": {"variant": 1, "gain": 20, "output": -3.5, "hpf": 3, "lpf": 3, "midFreq": 2, "midGain": 6, "iron": 200, "headroom": 18, "bias": 60, "age": 70, "noise": 60}},
+      {"name": "クリーン（現代的）", "p": {"inX": 2, "amp": 2, "outX": 1, "iron": 60}},
+      {"name": "エレキ：クリーン単音", "p": {"gain": 5, "hpf": 2, "lowFreq": 3, "lowGain": -2, "midFreq": 2, "midGain": 2, "highGain": 1.5, "output": -2}},
+      {"name": "エレキ：クリーンアルペジオ", "p": {"variant": 1, "hpf": 2, "lowFreq": 2, "lowGain": -1, "midFreq": 3, "midGain": 1.5, "highFreq": 2, "highGain": 2.5, "inX": 1, "output": 2.5}},
+      {"name": "エレキ：クリーンストラム", "p": {"variant": 1, "hpf": 3, "lowFreq": 3, "lowGain": -2.5, "midFreq": 4, "midGain": 1.5, "highFreq": 1, "highGain": 2, "output": 6.5}},
+      {"name": "エレキ：OD単音", "p": {"variant": 1, "hpf": 2, "lowFreq": 2, "lowGain": 1, "midFreq": 2, "midGain": 2.5, "lpf": 2, "output": 1}},
+      {"name": "エレキ：ODストラム", "p": {"variant": 1, "hpf": 2, "lowFreq": 3, "lowGain": -2.5, "midFreq": 0, "midGain": -2.5, "highFreq": 0, "highGain": 1, "output": 4}},
+      {"name": "エレキ：ディストーション単音", "p": {"variant": 1, "hpf": 2, "lowFreq": 2, "lowGain": 1.5, "midFreq": 3, "midGain": 2.5, "lpf": 3, "inX": 2, "iron": 80, "output": 1}},
+      {"name": "エレキ：ディストーションストラム", "p": {"variant": 1, "hpf": 2, "lowFreq": 3, "lowGain": -3, "midFreq": 0, "midGain": -3, "lpf": 2, "inX": 2, "iron": 80, "output": 4.5}},
+      {"name": "ドラム：オーバーヘッド", "p": {"variant": 1, "hpf": 3, "lowFreq": 3, "lowGain": -2, "midFreq": 4, "midGain": -1.5, "highFreq": 2, "highGain": 3, "inX": 2, "outX": 1, "output": 7}},
+      {"name": "ドラム：自然なルーム", "p": {"gain": 5, "hpf": 1, "lowFreq": 1, "lowGain": 1.5, "midFreq": 1, "midGain": -1.5, "highGain": 1.5, "iron": 120, "output": -4.5}},
+      {"name": "ボーカル：空気感", "p": {"variant": 1, "hpf": 2, "lowFreq": 3, "lowGain": -1.5, "midFreq": 3, "midGain": 1, "highFreq": 2, "highGain": 4, "inX": 2, "outX": 1, "output": 3}}
+    ],
+    "fet76": [
+      {"name": "初期値", "p": {}},
+      {"name": "ボーカル：ライディング 4:1", "p": {"input": 12, "output": 2.5, "attack": 3, "release": 5, "ratio": 0}},
+      {"name": "ボーカル：攻撃的 8:1", "p": {"variant": 0, "input": 18, "output": 2.5, "attack": 5, "release": 6, "ratio": 1}},
+      {"name": "ベース：安定 8:1", "p": {"input": 16, "output": 5, "attack": 3, "release": 4, "ratio": 1}},
+      {"name": "スネア：スマック", "p": {"input": 14, "output": 2.5, "attack": 1.5, "release": 7, "ratio": 1}},
+      {"name": "ドラムルーム：全押し", "p": {"variant": 0, "input": 24, "output": 15, "attack": 7, "release": 7, "ratio": 4}},
+      {"name": "ドラムバス：パンプ", "p": {"input": 10, "output": 2, "attack": 2, "release": 6.5, "ratio": 0}},
+      {"name": "初期型ブルー：荒め", "p": {"variant": 0, "fet": 3, "inX": 1, "out": 3, "input": 18, "output": 0.5, "iron": 150, "bias": 40}},
+      {"name": "リミッター 20:1", "p": {"input": 20, "output": 5.5, "attack": 7, "release": 5, "ratio": 3}},
+      {"name": "エレキ：クリーン単音のピーク", "p": {"input": 10, "output": 2.5, "attack": 5, "release": 6, "ratio": 0}},
+      {"name": "エレキ：ストラムの粒そろえ", "p": {"input": 8, "output": 3.5, "attack": 2, "release": 5, "ratio": 0}},
+      {"name": "ドラム：自然なルーム", "p": {"input": 8, "output": 3.5, "attack": 3, "release": 5, "ratio": 0}}
+    ],
+    "opto3a": [
+      {"name": "初期値", "p": {}},
+      {"name": "ボーカル：なめらか", "p": {"peak": 55, "gain": 79}},
+      {"name": "ボーカル：歯擦音を抑えめに", "p": {"peak": 50, "gain": 77, "hf": 70}},
+      {"name": "ベース：均一に", "p": {"peak": 60, "gain": 81}},
+      {"name": "アコギ：自然に", "p": {"peak": 40, "gain": 71}},
+      {"name": "ミックスバス：グルー", "p": {"peak": 30, "gain": 67, "cell": 1, "memory": 80}},
+      {"name": "リミット：前に出す", "p": {"peak": 65, "gain": 96, "limit": 1}},
+      {"name": "ヴィンテージ：遅い光学セル", "p": {"peak": 55, "gain": 80, "cell": 1, "memory": 90, "iron": 150, "age": 50}},
+      {"name": "エレキ：アルペジオを自然に", "p": {"peak": 45, "gain": 74}},
+      {"name": "エレキ：歪みを軽くならす", "p": {"peak": 30, "gain": 66}},
+      {"name": "ドラム：オーバーヘッドを自然に", "p": {"peak": 28, "gain": 65}},
+      {"name": "ボーカル：空気感を残して", "p": {"peak": 48, "gain": 76, "hf": 45}}
+    ]
+  },
+  "rack": [
+    { "name": "初期値：Pre > FET > Opto", "slots": [
+      {"type": "pre73"},
+      {"type": "fet76"},
+      {"type": "opto3a"} ] },
+    { "name": "ロックボーカル", "slots": [
+      {"type": "pre73", "preset": "ボーカル：抜け感"},
+      {"type": "fet76", "preset": "ボーカル：攻撃的 8:1"},
+      {"type": "opto3a", "preset": "ボーカル：なめらか", "p": {"peak": 35, "gain": 66}} ] },
+    { "name": "なめらかボーカル", "slots": [
+      {"type": "pre73", "preset": "ボーカル：太く温かく"},
+      {"type": "opto3a", "preset": "ボーカル：歯擦音を抑えめに"} ] },
+    { "name": "ボーカル直列コンプ（FET > FET）", "slots": [
+      {"type": "pre73", "preset": "ボーカル：抜け感"},
+      {"type": "fet76", "preset": "ボーカル：ライディング 4:1", "p": {"input": 8, "output": -2}},
+      {"type": "fet76", "preset": "リミッター 20:1", "p": {"input": 10, "output": 6.5}} ] },
+    { "name": "ボーカル：空気感を活かす", "slots": [
+      {"type": "pre73", "preset": "ボーカル：空気感"},
+      {"type": "opto3a", "preset": "ボーカル：空気感を残して"} ] },
+    { "name": "エレキ・クリーン：ピック単音", "slots": [
+      {"type": "pre73", "preset": "エレキ：クリーン単音"},
+      {"type": "fet76", "preset": "エレキ：クリーン単音のピーク"} ] },
+    { "name": "エレキ・クリーン：指弾きアルペジオ", "slots": [
+      {"type": "pre73", "preset": "エレキ：クリーンアルペジオ"},
+      {"type": "opto3a", "preset": "エレキ：アルペジオを自然に"} ] },
+    { "name": "エレキ・クリーン：ストラム", "slots": [
+      {"type": "pre73", "preset": "エレキ：クリーンストラム"},
+      {"type": "fet76", "preset": "エレキ：ストラムの粒そろえ"},
+      {"type": "opto3a", "preset": "エレキ：歪みを軽くならす", "p": {"peak": 25, "gain": 60}} ] },
+    { "name": "エレキ・オーバードライブ：ピック単音", "slots": [
+      {"type": "pre73", "preset": "エレキ：OD単音"},
+      {"type": "opto3a", "preset": "エレキ：歪みを軽くならす"} ] },
+    { "name": "エレキ・オーバードライブ：ストラム", "slots": [
+      {"type": "pre73", "preset": "エレキ：ODストラム"},
+      {"type": "fet76", "preset": "エレキ：ストラムの粒そろえ", "p": {"input": 6, "output": 4}} ] },
+    { "name": "エレキ・ディストーション：ピック単音", "slots": [
+      {"type": "pre73", "preset": "エレキ：ディストーション単音"},
+      {"type": "opto3a", "preset": "エレキ：歪みを軽くならす"} ] },
+    { "name": "エレキ・ディストーション：ストラム", "slots": [
+      {"type": "pre73", "preset": "エレキ：ディストーションストラム"},
+      {"type": "fet76", "preset": "エレキ：ストラムの粒そろえ", "p": {"input": 5, "attack": 1.5, "output": 4.5}} ] },
+    { "name": "キック", "slots": [
+      {"type": "pre73", "preset": "キック：胴鳴り"},
+      {"type": "fet76", "p": {"input": 10, "output": 1.5, "attack": 2, "release": 6, "ratio": 0}} ] },
+    { "name": "スネア", "slots": [
+      {"type": "pre73", "preset": "スネア：アタック"},
+      {"type": "fet76", "preset": "スネア：スマック"} ] },
+    { "name": "ドラム：オーバーヘッド", "slots": [
+      {"type": "pre73", "preset": "ドラム：オーバーヘッド"},
+      {"type": "opto3a", "preset": "ドラム：オーバーヘッドを自然に"} ] },
+    { "name": "ドラム：自然なルーム", "slots": [
+      {"type": "pre73", "preset": "ドラム：自然なルーム"},
+      {"type": "fet76", "preset": "ドラム：自然なルーム"} ] },
+    { "name": "ドラムルーム・スマッシュ", "slots": [
+      {"type": "pre73", "p": {"gain": 10, "output": -6, "lowFreq": 1, "lowGain": 3, "highGain": 3}},
+      {"type": "fet76", "preset": "ドラムルーム：全押し", "p": {"output": 15.5}} ] },
+    { "name": "ドラムバス", "slots": [
+      {"type": "pre73", "preset": "ドラムバス：熱く"},
+      {"type": "fet76", "preset": "ドラムバス：パンプ", "p": {"output": 1}} ] },
+    { "name": "ベースDI", "slots": [
+      {"type": "pre73", "preset": "ベースDI：ブースト"},
+      {"type": "fet76", "preset": "ベース：安定 8:1"},
+      {"type": "opto3a", "preset": "ベース：均一に", "p": {"peak": 40, "gain": 67}} ] },
+    { "name": "アコースティックギター", "slots": [
+      {"type": "pre73", "preset": "アコギ：きらめき"},
+      {"type": "opto3a", "preset": "アコギ：自然に"} ] },
+    { "name": "ミックスバス・グルー", "slots": [
+      {"type": "pre73", "p": {"inX": 1, "iron": 80, "highGain": 1, "lowFreq": 0, "lowGain": 1}},
+      {"type": "opto3a", "preset": "ミックスバス：グルー"} ] },
+    { "name": "ローファイ", "slots": [
+      {"type": "pre73", "preset": "ローファイ：汚し"},
+      {"type": "fet76", "preset": "初期型ブルー：荒め", "p": {"ratio": 4, "output": 14}} ] }
+  ]
+}

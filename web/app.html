@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vintage Rack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one rack — a frequency map on top, any number of modules stacked below in signal-flow order.
+   Every knob that touches a frequency carries the same color as its curve on the map. */
+:root {
+  color-scheme: dark;
+  --bg: #15171b; --panel: #1f2228; --panel-2: #272b33; --line: #353a44;
+  --ink: #e7e9ee; --ink-dim: #9097a5; --accent: #e8b04a;
+  --c-gain: #e0574f; --c-hpf: #7d8fb3; --c-low: #e8a33a; --c-mid: #4fbf86;
+  --c-high: #d46fd0; --c-lpf: #4cb6d6; --c-sc: #f08a3c; --c-dyn: #b9bfca; --c-analog: #d8c58f;
+  --good: #4fbf86; --warn: #e8b04a; --bad: #e0574f;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; }
+body { padding: 16px; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; }
+.brand { font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: .06em; text-transform: uppercase; margin-right: auto; }
+.brand small { font-family: var(--f-body); font-weight: 400; font-size: 12px; letter-spacing: 0; color: var(--ink-dim); text-transform: none; margin-left: 8px; }
+.btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--ink-dim); }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn.on { background: var(--accent); border-color: var(--accent); color: #1a1408; font-weight: 700; }
+.btn.play.on { background: var(--good); border-color: var(--good); color: #0b1a12; }
+.btn.analog.on { background: var(--c-analog); border-color: var(--c-analog); color: #1d1a10; }
+.btn.small { padding: 3px 8px; font-size: 12px; }
+.meters { display: flex; gap: 8px; align-items: center; font-family: var(--f-mono); font-size: 11px; color: var(--ink-dim); }
+.mbar { width: 90px; height: 8px; background: var(--panel-2); border-radius: 2px; overflow: hidden; position: relative; }
+.mbar i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--good) 0 70%, var(--warn) 70% 88%, var(--bad) 88%); }
+
+.map { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px 8px; }
+.map-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 6px; }
+.map-head h2 { font-family: var(--f-display); font-weight: 600; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-dim); flex: 1; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+.legend span.dash::before { height: 0; border-top: 2px dashed var(--c); background: none; vertical-align: 3px; }
+.range { display: flex; gap: 3px; align-items: center; font-size: 12px; color: var(--ink-dim); }
+#graph { width: 100%; height: 250px; display: block; cursor: crosshair; }
+.hint { min-height: 22px; font-size: 13px; margin-top: 4px; color: var(--ink); }
+.hint b { font-family: var(--f-mono); font-weight: 500; }
+.hint .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.toolbar .lab { font-size: 12px; color: var(--ink-dim); }
+.toolbar .spacer { flex: 1; }
+.rack { display: flex; flex-direction: column; gap: 8px; }
+.empty { padding: 28px; text-align: center; color: var(--ink-dim); border: 1px dashed var(--line); border-radius: 6px; }
+.mod { display: grid; grid-template-columns: 44px 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; position: relative; }
+.mod.off .face .controls { opacity: .45; }
+.mod.drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.mod.dragging { opacity: .5; }
+.rail { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; background: var(--panel-2); border-right: 1px solid var(--line); border-radius: 6px 0 0 6px; }
+.slot { font-family: var(--f-display); font-weight: 700; font-size: 20px; color: var(--accent); }
+.handle { cursor: grab; color: var(--ink-dim); font-size: 18px; line-height: 1; user-select: none; padding: 2px 6px; }
+.mv { width: 28px; height: 22px; padding: 0; font-size: 11px; }
+.face { padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+.mod-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.mod-title { font-family: var(--f-display); font-weight: 700; font-size: 19px; letter-spacing: .06em; text-transform: uppercase; }
+.mod-sub { font-size: 12px; color: var(--ink-dim); margin-right: auto; flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#rackPreset { max-width: 210px; }
+.hdr-tg { display: flex; gap: 6px; }
+select.btn.small { padding: 3px 6px; font-size: 12px; max-width: 190px; }
+.circuit { border-top: 1px dashed var(--line); padding-top: 12px; display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-start; }
+.circuit h3 { width: 100%; margin: 0; font-family: var(--f-display); font-size: 13px; letter-spacing: .1em; color: var(--c-analog); font-weight: 600; display: flex; gap: 10px; align-items: center; }
+.circuit h3 .note { letter-spacing: 0; font-family: var(--f-body); font-weight: 400; }
+.comps { display: grid; grid-template-columns: auto 1fr; gap: 6px 8px; align-items: center; font-size: 12px; color: var(--ink-dim); min-width: 330px; }
+.comps select.btn.small { max-width: none; }
+.circuit .knob { width: 76px; }
+.comps select { width: 100%; }
+.harm { margin-left: auto; padding: 6px 8px; background: var(--panel-2); border-radius: 6px; font-family: var(--f-mono); font-size: 11px; color: var(--ink-dim); }
+.harm canvas { width: 300px; height: 130px; display: block; }
+.circuit.disabled .knob, .circuit.disabled .comps { opacity: .4; }
+.pwr { width: 30px; height: 30px; border-radius: 50%; padding: 0; display: grid; place-items: center; font-size: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 4px; align-items: flex-start; }
+.group { display: flex; gap: 2px; padding: 6px 6px 4px; border-radius: 6px; border: 1px solid transparent; position: relative; }
+.group[data-band] { border-color: color-mix(in srgb, var(--c) 35%, transparent); background: color-mix(in srgb, var(--c) 7%, transparent); }
+.group[data-band].hl { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.group .gname { position: absolute; top: -8px; left: 8px; font-family: var(--f-display); font-size: 11px; letter-spacing: .1em; background: var(--panel); padding: 0 4px; color: var(--c, var(--ink-dim)); }
+
+.knob { width: 68px; display: flex; flex-direction: column; align-items: center; gap: 1px; touch-action: none; user-select: none; }
+.knob svg { width: 52px; height: 52px; cursor: ns-resize; display: block; }
+.knob .lab { white-space: nowrap; font-family: var(--f-display); font-weight: 600; font-size: 12px; letter-spacing: .06em; color: var(--ink-dim); text-transform: uppercase; }
+.knob .val { font-family: var(--f-mono); font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.knob.disabled { opacity: .3; pointer-events: none; }
+.knob:focus-visible { outline: 2px solid var(--accent); border-radius: 6px; }
+.knob.cont svg circle { stroke: var(--accent); stroke-dasharray: 2 3; }
+
+.tg { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
+.tbtn { font-family: var(--f-display); font-weight: 600; letter-spacing: .06em; font-size: 12.5px; padding: 4px 9px; min-width: 52px; }
+.tbtn.disabled { opacity: .3; pointer-events: none; }
+.ratio { display: flex; gap: 3px; flex-wrap: wrap; max-width: 150px; padding-top: 4px; }
+.ratio .tbtn { min-width: 40px; }
+.ratio .lab { width: 100%; font-family: var(--f-display); font-size: 12px; letter-spacing: .06em; color: var(--ink-dim); }
+
+.dyn { display: flex; gap: 10px; align-items: center; margin-left: auto; padding: 4px 6px; background: var(--panel-2); border-radius: 6px; }
+.dyn canvas { width: 92px; height: 92px; display: block; }
+.grm { display: flex; flex-direction: column; gap: 4px; font-family: var(--f-mono); font-size: 11px; color: var(--ink-dim); width: 120px; }
+.grbar { height: 10px; background: #111317; border-radius: 2px; position: relative; overflow: hidden; }
+.grbar i { position: absolute; inset: 0 0 0 auto; width: 0; background: var(--accent); }
+.grnum { font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.note { font-size: 12px; color: var(--ink-dim); line-height: 1.6; }
+footer.note { padding: 0 4px 12px; max-width: 80ch; }
+@media (max-width: 640px) { .dyn { margin-left: 0; } .brand small { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Vintage Rack <small>ヴィンテージ・マイクプリ／コンプ ラック</small></div>
+    <label class="note" for="srcSel">音源</label>
+    <select id="srcSel" class="btn">
+      <option value="drums">デモ: ドラム＋ベース</option>
+      <option value="vocal">デモ: ボーカル風シンセ</option>
+      <option value="file" disabled>読み込んだファイル</option>
+    </select>
+    <button id="openBtn" class="btn" type="button">ファイルを開く…</button>
+    <input id="fileIn" type="file" accept="audio/*" hidden>
+    <button id="playBtn" class="btn play" type="button">▶ 再生</button>
+    <button id="abBtn" class="btn" type="button" title="ラック全体をバイパスして原音と比較">A/B 原音</button>
+    <div class="meters" aria-label="入出力メーター">
+      IN <div class="mbar"><i id="mIn"></i></div>
+      OUT <div class="mbar"><i id="mOut"></i></div>
+    </div>
+  </header>
+
+  <section class="map" aria-label="周波数マップ">
+    <div class="map-head">
+      <h2>Frequency map</h2>
+      <div class="legend">
+        <span style="--c:var(--c-hpf)">HPF</span>
+        <span style="--c:var(--c-low)">LOW</span>
+        <span style="--c:var(--c-mid)">MID</span>
+        <span style="--c:var(--c-high)">HIGH</span>
+        <span style="--c:var(--c-lpf)">LPF</span>
+        <span class="dash" style="--c:var(--c-analog)">ANALOG 特性（トランス・回路のクセ）</span>
+        <span class="dash" style="--c:var(--c-sc)">Opto 検出感度（HF EMPH）</span>
+        <span style="--c:#fff">ラック全体の周波数特性</span>
+        <span style="--c:#5b6474">出力スペクトル</span>
+      </div>
+      <div class="range" role="group" aria-label="縦軸の範囲">縦軸
+        <button class="btn small" type="button" data-range="20">±20 dB</button>
+        <button class="btn small" type="button" data-range="6">±6 dB</button>
+        <button class="btn small" type="button" data-range="2">±2 dB</button>
+      </div>
+    </div>
+    <canvas id="graph" aria-label="周波数特性グラフ"></canvas>
+    <div class="hint" id="hint"></div>
+  </section>
+
+  <div class="toolbar" role="toolbar" aria-label="モジュールの追加">
+    <label class="lab" for="rackPreset">ラックプリセット</label>
+    <select class="btn" id="rackPreset"><option value="">選択…</option></select>
+    <span class="lab">追加:</span>
+    <button class="btn" type="button" data-add="pre73">＋ Pre / EQ</button>
+    <button class="btn" type="button" data-add="fet76">＋ FET Comp</button>
+    <button class="btn" type="button" data-add="opto3a">＋ Opto Leveler</button>
+    <span class="spacer"></span>
+    <span class="lab" id="count"></span>
+    <button class="btn" type="button" id="allAnalogOn">ANALOG 全オン</button>
+    <button class="btn" type="button" id="allAnalogOff">ANALOG 全オフ</button>
+  </div>
+
+  <section class="rack" id="rack" aria-label="ラック（上から順に信号が流れます）"></section>
+
+  <footer class="note">
+    上から順に信号が流れます。同じモジュールを何台でも追加・複製でき、左端の ⠿ をドラッグするか ▲▼ で順番を入れ替えます。
+    <b>ANALOG</b> をオンにすると、倍音（サチュレーション）とトランス・回路による帯域のクセが加わり、グラフに点線で表示されます。オフにすると完全にクリーンな処理になります。
+    帯域のクセは実機の傾向をモデル化したもので、測定値の再現ではありません。
+    <b>無段階</b> をオンにすると、実機の固定ポイントの代わりに周波数を連続的に回せます（実機にはない拡張機能）。
+    つまみはドラッグ（上下）・ホイール・矢印キーで操作、ダブルクリックで初期値、Shift で微調整。
+    音は DAW 版（AU / VST3）と同じアルゴリズムです。各モジュールは往年のスタジオ機材の音響特性を参考に独自に設計したもので、それらの機材のメーカーとは一切関係がありません。
+  </footer>
+</div>
+
+<script id="presets-src" type="application/json">/*__PRESETS__*/</script>
+<script id="dsp-src">
+/*__DSP__*/
+</script>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const SPEC = VR.SPEC, CONT = VR.CONT;
+const css = getComputedStyle(document.documentElement);
+const colorOf = (b) => css.getPropertyValue('--c-' + b).trim() || '#ccc';
+const MAX_SLOTS = 12;
+
+// ------------------------------------------------------------------ state
+const MOD_INFO = {
+  pre73:  { title: 'Pre / EQ', sub: 'マイクプリ＋3バンド・インダクター EQ' },
+  fet76:  { title: 'FET Comp', sub: 'FET ピークリミッター' },
+  opto3a: { title: 'Opto Leveler', sub: '光学式レベラー（ソリッドステート）' },
+};
+const ANALOG_DESC = {
+  pre73: '入出力トランスと Class-A 回路：60 Hz 付近がわずかに膨らみ（+0.7 dB）、18 kHz 以上がなだらかに下がり、レベルを上げるほど偶数・奇数倍音が増えます',
+  fet76: ['Early：低域が太く（45 Hz +0.6 dB）高域が早めに丸まる（11 kHz〜 −1.2 dB）。倍音多め',
+          'Low-noise：3 kHz にわずかな張り、15 kHz〜 −0.6 dB。標準的な倍音',
+          'Late：5 kHz 付近が明るく（+0.6 dB）、倍音少なめでクリーン寄り'],
+  opto3a: 'ソリッドステート回路：2.2 kHz 付近が前に出て（+0.8 dB）、80 Hz 以下と 14 kHz 以上がわずかに控えめ。軽い倍音',
+};
+const PRESETS = JSON.parse(document.getElementById('presets-src').textContent);
+const modPreset = (type, name) => (PRESETS.module[type].find((x) => x.name === name) || { p: {} }).p;
+// Japanese explanations for each circuit part (hint line)
+const COMP_DESC = {
+  pre73: {
+    inX: ['ヴィンテージのニッケルコア。低域が太く、押し込むと豊かに歪む', '中期の製品。やや控えめ', '現行の再生産品。整っていてクリーン寄り', 'トランスなし。帯域のクセも歪みもほぼなし'],
+    amp: ['ヴィンテージ品。偶数倍音が多く、ノイズもやや多い', '現行品。標準的な倍音', 'ローノイズで倍音少なめ、余裕のある回路'],
+    outX: ['ヴィンテージ出力トランス。高域が少し丸い', '現行の出力トランス', 'トランスなし'],
+  },
+  fet76: {
+    fet: ['選んだモデルの標準部品', '初期型の FET。標準的な歪み', '後期型の FET。歪みが少なめ', '選別なしの古い FET。歪みが多く荒い', '選別品。クリーン'],
+    inX: ['選んだモデルの標準部品', '初期型のニッケルコア。低域が太く、高域が早めに丸まる', '後期のスチールコア。標準的', 'トランスなし'],
+    out: ['選んだモデルの標準部品', 'オリジナル構成（Class-A＋出力トランス）', '明るく速い（後期型系）', '改造した高ゲイン仕様。歪み・ノイズ多め'],
+  },
+  opto3a: {
+    cell: ['標準の光学セル', '古いセル。反応が遅く、リリースが長くなる', '改造の高速セル。反応が速く、リリースも短い'],
+    amp: ['オリジナルのディスクリート回路。中域が前に出る', '後期の IC 回路。クリーン'],
+    outX: ['オリジナルの出力トランス', '現行の出力トランス', 'トランスなし'],
+  },
+};
+const COMP_LABEL = { inX: '入力トランス', amp: '増幅回路', outX: '出力トランス', fet: 'FET', out: '出力段', cell: '光学セル' };
+const KNOB_DESC = {
+  bias: 'BIAS：トランジスタのバイアス。プラスで偶数倍音（太さ・甘さ）が増え、マイナスで減ります',
+  headroom: 'HEADROOM：電源電圧（18〜30 V）。下げるほど早く飽和して歪みやすくなります',
+  iron: 'IRON：トランス鉄心の飽和量（0〜200 %）。低域ほど強く歪みます。0 % でトランスの歪みなし',
+  age: 'AGE：経年劣化・部品の個体差。高域がくすみ、歪みとノイズが増え、左右の EQ 周波数が少しずれます',
+  noise: 'NOISE：ヒス（サー）と電源ハム（50 Hz）の量。0 でなし',
+  detector: 'DETECTOR：検出回路のプログラム依存度。上げるほど、長く圧縮したあとのリリースが遅くなります',
+  memory: 'MEMORY：光学セルの記憶効果。上げるほど、長く圧縮したあとのリリースが遅くなります',
+};
+let uidSeq = 1;
+const newSlot = (type, p) => ({ uid: 's' + (uidSeq++), type, on: true, p: Object.assign({}, VR.DEFAULTS[type], p || {}) });
+let state = {
+  slots: [newSlot('pre73', { gain: 5, hpf: 2, lowFreq: 1, lowGain: 3, midFreq: 3, midGain: 4, highGain: 3 }), newSlot('fet76'), newSlot('opto3a')],
+  bypass: false, range: 20, open: {},
+};
+try {
+  const s = JSON.parse(localStorage.getItem('vintage-rack-v2'));
+  if (s && Array.isArray(s.slots)) {
+    state.slots = s.slots.filter((x) => VR.DEFAULTS[x.type]).map((x) => newSlot(x.type, x.p)).map((n, i) => Object.assign(n, { on: s.slots[i].on !== false }));
+    state.range = s.range || 20;
+  }
+} catch (e) {}
+const save = () => { try { localStorage.setItem('vintage-rack-v2', JSON.stringify({ slots: state.slots, range: state.range })); } catch (e) {} };
+const slotOf = (uid) => state.slots.find((s) => s.uid === uid);
+
+// ------------------------------------------------------------------ audio engine
+let ctx = null, node = null, analyser = null, srcNode = null, playing = false, local = null;
+const buffers = {};
+function post(msg) { if (node && node.port) node.port.postMessage(msg); if (local) applyMsg(local, msg); }
+function applyMsg(rack, m) {
+  if (m.t === 'slots') rack.setSlots(m.slots);
+  else if (m.t === 'params') rack.setParams(m.uid, m.p);
+  else if (m.t === 'on') rack.setOn(m.uid, m.v);
+  else if (m.t === 'bypass') rack.bypass = m.v;
+}
+const pushSlots = () => post({ t: 'slots', slots: state.slots.map((s) => ({ uid: s.uid, type: s.type, on: s.on, p: s.p })) });
+function pushAll() { pushSlots(); post({ t: 'bypass', v: state.bypass }); }
+
+const WORKLET = `
+${document.getElementById('dsp-src').textContent}
+class VRProc extends AudioWorkletProcessor {
+  constructor() { super(); this.rack = new VR.Rack(sampleRate); this.bypass = false; this.acc = null; this.n = 0;
+    this.port.onmessage = (e) => { const m = e.data, r = this.rack;
+      if (m.t === 'slots') r.setSlots(m.slots); else if (m.t === 'params') r.setParams(m.uid, m.p);
+      else if (m.t === 'on') r.setOn(m.uid, m.v); else if (m.t === 'bypass') this.bypass = m.v; }; }
+  process(inputs, outputs) {
+    const i = inputs[0], o = outputs[0]; if (!o || !o[0]) return true;
+    const L = o[0], R = o[1] || o[0];
+    if (i && i[0]) { L.set(i[0]); R.set(i[1] || i[0]); } else { L.fill(0); R.fill(0); }
+    if (!this.bypass) this.rack.process(L, R, L.length);
+    else { let a = 0; for (let k = 0; k < L.length; k++) a = Math.max(a, Math.abs(L[k]), Math.abs(R[k])); this.rack.inPk = this.rack.outPk = a; }
+    const m = this.rack.meters();
+    if (!this.acc) this.acc = m;
+    else { this.acc.in = Math.max(this.acc.in, m.in); this.acc.out = Math.max(this.acc.out, m.out);
+      for (const k in m.gr) this.acc.gr[k] = Math.max(this.acc.gr[k] || 0, m.gr[k]); }
+    if (++this.n >= 12) { this.port.postMessage(this.acc); this.acc = null; this.n = 0; }
+    return true;
+  }
+}
+registerProcessor('vintage-rack', VRProc);`;
+
+async function ensureAudio() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+  analyser = ctx.createAnalyser(); analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0.8;
+  try {
+    const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+    await ctx.audioWorklet.addModule(url);
+    node = new AudioWorkletNode(ctx, 'vintage-rack', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    node.port.onmessage = (e) => onMeters(e.data);
+  } catch (err) {
+    console.warn('AudioWorklet unavailable, using fallback:', err && err.message);
+    node = ctx.createScriptProcessor(1024, 2, 2); local = new VR.Rack(ctx.sampleRate);
+    let acc = 0;
+    node.onaudioprocess = (e) => {
+      const ib = e.inputBuffer, ob = e.outputBuffer, L = ob.getChannelData(0), R = ob.getChannelData(1);
+      L.set(ib.getChannelData(0)); R.set(ib.numberOfChannels > 1 ? ib.getChannelData(1) : ib.getChannelData(0));
+      if (!local.bypass) local.process(L, R, L.length);
+      if (++acc % 2 === 0) onMeters(local.meters());
+    };
+  }
+  node.connect(analyser); analyser.connect(ctx.destination);
+  pushAll();
+  buffers.drums = makeDemo('drums'); buffers.vocal = makeDemo('vocal');
+}
+
+function makeDemo(kind) {
+  const sr = ctx.sampleRate, bpm = 96, beat = 60 / bpm, len = Math.round(sr * beat * 8);
+  const b = ctx.createBuffer(2, len, sr), L = b.getChannelData(0), R = b.getChannelData(1);
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+  const add = (t0, fn, dur, panL = 1, panR = 1) => { const s = Math.round(t0 * sr), n = Math.round(dur * sr);
+    for (let i = 0; i < n && s + i < len; i++) { const v = fn(i / sr); L[s + i] += v * panL; R[s + i] += v * panR; } };
+  if (kind === 'drums') {
+    for (let k = 0; k < 8; k++) {
+      const t = k * beat;
+      if (k % 2 === 0 || k === 7) add(t, (x) => 0.55 * Math.sin(2 * Math.PI * (45 * x + 90 * (1 - Math.exp(-x * 30)) / 30)) * Math.exp(-x * 7), 0.5);
+      if (k % 2 === 1) { let hp = 0; add(t, (x) => { const nz = rnd(); hp = nz - hp * 0.2; return 0.35 * (hp * Math.exp(-x * 18) + 0.6 * Math.sin(2 * Math.PI * 190 * x) * Math.exp(-x * 25)); }, 0.3); }
+      for (let h = 0; h < 2; h++) { let p = 0; add(t + h * beat / 2, (x) => { const nz = rnd(); const y = nz - p; p = nz; return 0.10 * y * Math.exp(-x * 60); }, 0.08, 0.7, 1); }
+    }
+    const notes = [41.2, 41.2, 55, 49, 41.2, 41.2, 61.7, 55];
+    notes.forEach((f, k) => { let lp = 0; add(k * beat, (x) => { const ph = (f * x) % 1; const saw = 2 * ph - 1; lp += 0.06 * (saw - lp); return 0.4 * lp * Math.min(1, x * 200) * Math.exp(-x * 2.2); }, beat * 0.95); });
+  } else {
+    const mel = [220, 246.9, 261.6, 293.7, 329.6, 293.7, 261.6, 246.9];
+    mel.forEach((f, k) => {
+      add(k * beat, (x) => {
+        const vib = 1 + 0.006 * Math.sin(2 * Math.PI * 5.5 * x) * Math.min(1, x * 3);
+        let s = 0; for (let h = 1; h <= 24; h++) { const fh = f * h * vib; if (fh > 9000) break;
+          const formant = Math.exp(-Math.pow((fh - 700) / 260, 2)) + 0.6 * Math.exp(-Math.pow((fh - 1150) / 300, 2)) + 0.25 * Math.exp(-Math.pow((fh - 2900) / 500, 2));
+          s += formant * Math.sin(2 * Math.PI * fh * x) / Math.sqrt(h); }
+        const env = Math.min(1, x * 12) * Math.min(1, (beat * 0.95 - x) * 10) * (0.5 + 0.5 * Math.abs(Math.sin(k * 1.7 + 1)));
+        const br = (x > 0.02 && x < 0.06) ? 0.08 * rnd() : 0;
+        return 0.28 * s * env + br;
+      }, beat * 0.95);
+    });
+  }
+  return b;
+}
+function play() {
+  if (srcNode) { try { srcNode.stop(); } catch (e) {} srcNode.disconnect(); srcNode = null; }
+  const buf = buffers[$('#srcSel').value]; if (!buf) return;
+  srcNode = ctx.createBufferSource(); srcNode.buffer = buf; srcNode.loop = true; srcNode.connect(node); srcNode.start();
+}
+$('#playBtn').addEventListener('click', async () => {
+  await ensureAudio(); if (ctx.state === 'suspended') await ctx.resume();
+  playing = !playing;
+  if (playing) play(); else if (srcNode) { srcNode.stop(); srcNode = null; }
+  $('#playBtn').classList.toggle('on', playing); $('#playBtn').textContent = playing ? '■ 停止' : '▶ 再生';
+});
+$('#srcSel').addEventListener('change', () => { if (playing) play(); });
+$('#openBtn').addEventListener('click', () => $('#fileIn').click());
+$('#fileIn').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  await ensureAudio();
+  try {
+    buffers.file = await ctx.decodeAudioData(await f.arrayBuffer());
+    const opt = $('#srcSel option[value=file]'); opt.disabled = false; opt.textContent = 'ファイル: ' + f.name;
+    $('#srcSel').value = 'file'; if (playing) play();
+    setHint(null, `「${f.name}」を読み込みました。▶ 再生で鳴らせます。`);
+  } catch (err) { setHint(null, 'このファイルは読み込めませんでした。WAV / MP3 / AAC などの音声ファイルを選んでください。'); }
+});
+$('#abBtn').addEventListener('click', () => {
+  state.bypass = !state.bypass; $('#abBtn').classList.toggle('on', state.bypass);
+  $('#abBtn').textContent = state.bypass ? 'A/B 原音（再生中）' : 'A/B 原音'; post({ t: 'bypass', v: state.bypass });
+});
+
+// ------------------------------------------------------------------ meters
+const meterState = { in: 0, out: 0, gr: {} };
+function onMeters(m) {
+  meterState.in = Math.max(m.in, meterState.in * 0.85); meterState.out = Math.max(m.out, meterState.out * 0.85);
+  meterState.gr = m.gr || {};
+}
+const pct = (lin) => Math.max(0, Math.min(100, (VR.linToDb(lin) + 48) / 48 * 100));
+
+// ------------------------------------------------------------------ knob component
+// opts: label, get, set, min, max, step, list, fmt, hl:{uid,band}, def, desc, log
+function knob(o) {
+  const el = document.createElement('div'); el.className = 'knob' + (o.log ? ' cont' : ''); el.tabIndex = 0;
+  const c = o.hl && o.hl.band ? colorOf(o.hl.band) : '#c9ced8';
+  el.innerHTML = `<svg viewBox="0 0 52 52" aria-hidden="true">
+    <circle cx="26" cy="26" r="17" fill="#2d323b" stroke="#111317" stroke-width="2"/>
+    <path class="trk" fill="none" stroke="#3a404b" stroke-width="4" stroke-linecap="round"/>
+    <path class="arc" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round"/>
+    <line class="ptr" x1="26" y1="26" x2="26" y2="12" stroke="#f2f3f5" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <div class="lab">${o.label}</div><div class="val"></div>`;
+  // log knobs work on ln(value) internally
+  const get = o.log ? () => Math.log(o.get()) : o.get;
+  const set = o.log ? (v) => o.set(Math.round(Math.exp(v))) : o.set;
+  const lo = o.list ? 0 : (o.log ? Math.log(o.min) : o.min), hi = o.list ? o.list.length - 1 : (o.log ? Math.log(o.max) : o.max);
+  const st = o.list ? 1 : (o.log ? 0 : (o.step || 0));
+  const A0 = -135, A1 = 135, R = 23;
+  const pt = (a) => [26 + R * Math.sin(a * Math.PI / 180), 26 - R * Math.cos(a * Math.PI / 180)];
+  const arcPath = (a, b) => { const [x0, y0] = pt(a), [x1, y1] = pt(b); return `M${x0} ${y0} A${R} ${R} 0 ${b - a > 180 ? 1 : 0} 1 ${x1} ${y1}`; };
+  el.querySelector('.trk').setAttribute('d', arcPath(A0, A1));
+  const bipolar = !o.list && !o.log && lo < 0 && hi > 0;
+  const text = () => o.fmt ? o.fmt(o.get()) : (o.list ? o.list[o.get()] : o.get());
+  const render = () => {
+    const v = get(); const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo || 1))), a = A0 + t * (A1 - A0);
+    const from = bipolar ? 0 : A0;
+    el.querySelector('.arc').setAttribute('d', Math.abs(a - from) < 0.5 ? '' : arcPath(Math.min(from, a), Math.max(from, a)));
+    el.querySelector('.ptr').setAttribute('transform', `rotate(${a} 26 26)`);
+    el.querySelector('.val').textContent = text();
+    el.setAttribute('aria-valuetext', text());
+  };
+  const setV = (v) => { v = Math.max(lo, Math.min(hi, v)); if (st) v = Math.round(v / st) * st; v = +v.toFixed(4);
+    if (v !== +(+get()).toFixed(4)) { set(v); render(); hover(); } };
+  el.setAttribute('role', 'slider'); el.setAttribute('aria-label', o.label);
+  let drag = null;
+  const hover = () => setHint(o.hl || null, o.desc ? o.desc() : `${o.label}: ${text()}`);
+  el.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; el.setPointerCapture(e.pointerId); drag = { y: e.clientY, v: get() }; el.focus(); hover(); });
+  el.addEventListener('pointermove', (e) => { if (!drag) return; const range = hi - lo, k = e.shiftKey ? 600 : 160;
+    const dv = (drag.y - e.clientY) / k * range; setV(drag.v + (o.list ? Math.round(dv * 0.9) : dv)); });
+  el.addEventListener('pointerup', () => { drag = null; });
+  el.addEventListener('dblclick', () => setV(o.def !== undefined ? (o.log ? Math.log(o.def) : o.def) : lo));
+  el.addEventListener('wheel', (e) => { e.preventDefault(); const d = e.deltaY < 0 ? 1 : -1; setV(get() + d * (st || (hi - lo) / (e.shiftKey ? 400 : 100))); }, { passive: false });
+  el.addEventListener('keydown', (e) => { const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key]; if (d) { e.preventDefault(); setV(get() + d * (st || (hi - lo) / 100)); } });
+  el.addEventListener('pointerenter', hover); el.addEventListener('focus', hover);
+  el.addEventListener('pointerleave', () => { if (!drag) setHint(null); });
+  el.render = render; render();
+  return el;
+}
+function toggle(label, get, set, hl, desc, cls = '') {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn tbtn ' + cls; b.textContent = label;
+  const r = () => { b.classList.toggle('on', !!get()); b.setAttribute('aria-pressed', !!get()); };
+  b.addEventListener('click', () => { set(get() ? 0 : 1); r(); if (desc) setHint(hl || null, desc()); });
+  b.render = r; r();
+  if (desc) { b.addEventListener('pointerenter', () => setHint(hl || null, desc())); b.addEventListener('pointerleave', () => setHint(null)); }
+  return b;
+}
+function group(name, hl, kids) {
+  const g = document.createElement('div'); g.className = 'group';
+  if (hl) { g.dataset.band = hl.band; g.dataset.uid = hl.uid; g.style.setProperty('--c', colorOf(hl.band)); }
+  if (name) { const n = document.createElement('span'); n.className = 'gname'; n.textContent = name; g.append(n); }
+  kids.forEach((k) => g.append(k)); return g;
+}
+const col = (...kids) => { const d = document.createElement('div'); d.className = 'tg'; d.append(...kids); return d; };
+
+// ------------------------------------------------------------------ formatting / hints
+const hz = (f) => f >= 1000 ? (f / 1000).toFixed(f >= 10000 || f % 1000 === 0 ? (f % 1000 === 0 ? 0 : 1) : (f % 100 === 0 ? 1 : 2)) + ' kHz' : Math.round(f) + ' Hz';
+const sdb = (d) => (d > 0 ? '+' : '') + (+d).toFixed(1) + ' dB';
+let highlight = null;  // { uid, band }
+const DEFAULT_HINT = 'つまみにカーソルを合わせると、そのつまみが動かす帯域がグラフ上で同じ色で光ります。ANALOG ボタンに合わせると、そのモジュールのアナログ特性カーブが光ります。';
+function setHint(hl, text) {
+  highlight = hl;
+  document.querySelectorAll('.group[data-band]').forEach((g) => g.classList.toggle('hl', !!hl && g.dataset.band === hl.band && g.dataset.uid === hl.uid));
+  const h = $('#hint');
+  h.innerHTML = (hl ? `<span class="sw" style="background:${colorOf(hl.band)}"></span>` : '') + (text || DEFAULT_HINT);
+  drawGraph();
+}
+function changed(s) { post({ t: 'params', uid: s.uid, p: s.p }); save(); drawGraph(); refreshDisplays(); if (state.open[s.uid]) requestHarm(s.uid); }
+const slotNo = (s) => state.slots.indexOf(s) + 1;
+
+// ------------------------------------------------------------------ module builders
+const builders = {
+  pre73(s, face) {
+    const p = s.p, U = s.uid, set = (k) => (v) => { p[k] = v; changed(s); }, get = (k) => () => p[k];
+    const v84 = () => SPEC.pre73.variants[p.variant] === 'plus';
+    const F = () => VR.freqs73(p);
+    const gainList = () => p.mic ? SPEC.pre73.gainMic : SPEC.pre73.gainLine;
+    if (!gainList().includes(p.gain)) p.gain = p.mic ? 50 : 0;
+    const v = SPEC.pre73.variants[p.variant];
+    const hlOf = (band) => ({ uid: U, band });
+    const kGain = knob({ label: 'Gain', hl: hlOf('gain'), list: gainList(), get: () => Math.max(0, gainList().indexOf(p.gain)), set: (i) => { p.gain = gainList()[i]; changed(s); }, fmt: () => (p.gain > 0 ? '+' : '') + p.gain + ' dB',
+      def: p.mic ? 6 : 2, desc: () => `GAIN：プリアンプの増幅量（5 dB ステップ）。${p.analog ? '上げるほどトランスが飽和して倍音が増えます。' : 'ANALOG オフのため倍音は加わりません。'}現在 ${p.mic ? 'MIC' : 'LINE'} ${p.gain} dB` });
+    let kHpf, kLF, kMF, kHF, kLpf;
+    if (!p.cont) {
+      const hpfL = SPEC.pre73.hpf[v].map((f) => f ? hz(f) : 'OFF'), lpfL = SPEC.pre73.lpf[v].map((f) => f ? hz(f) : 'OFF'), hiL = SPEC.pre73.high[v].map(hz);
+      kHpf = knob({ label: 'HPF', hl: hlOf('hpf'), list: hpfL, get: get('hpf'), set: set('hpf'), def: 0, desc: () => F().hpf ? `HPF：${hz(F().hpf)} より下を 18 dB/oct でカット` : 'HPF：オフ（50 / 80 / 160 / 300 Hz から選択）' });
+      kLF = knob({ label: 'Freq', hl: hlOf('low'), list: SPEC.pre73.low.map(hz), get: get('lowFreq'), set: set('lowFreq'), def: 1, desc: () => `LOW FREQ：低域シェルフを 35 / 60 / 110 / 220 Hz から選択。現在 ${hz(F().low)}` });
+      kMF = knob({ label: 'Freq', hl: hlOf('mid'), list: SPEC.pre73.mid.map(hz), get: get('midFreq'), set: set('midFreq'), def: 2, desc: () => `MID FREQ：中域ピークの中心を 360 Hz〜7.2 kHz の 6 点から選択。現在 ${hz(F().mid)}` });
+      kHF = knob({ label: 'Freq', hl: hlOf('high'), list: hiL, get: () => Math.min(p.highFreq, hiL.length - 1), set: set('highFreq'), def: hiL.length > 1 ? 1 : 0, desc: () => 'Classic+ は高域シェルフを 10 / 12 / 16 kHz から選択（Classic は 12 kHz 固定）' });
+      kLpf = knob({ label: 'LPF', hl: hlOf('lpf'), list: lpfL, get: () => Math.min(p.lpf, lpfL.length - 1), set: set('lpf'), def: 0, desc: () => F().lpf ? `LPF（Classic+）：${hz(F().lpf)} より上を 18 dB/oct でカット` : 'LPF（Classic+）：オフ' });
+      if (!v84()) { kHF.classList.add('disabled'); kLpf.classList.add('disabled'); }
+    } else {
+      const cf = (k, range, label, band, desc, offFn) => knob({ label, hl: hlOf(band), log: true, min: range[0], max: range[1], get: get(k), set: set(k), def: VR.DEFAULTS.pre73[k],
+        fmt: (x) => offFn && offFn(x) ? 'OFF' : hz(x), desc });
+      kHpf = cf('hpfHz', CONT.hpf, 'HPF', 'hpf', () => F().hpf ? `HPF（無段階）：${hz(F().hpf)} より下を 18 dB/oct でカット。左端で OFF` : 'HPF（無段階）：OFF', (x) => x < CONT.hpfOff);
+      kLF = cf('lowHz', CONT.low, 'Freq', 'low', () => `LOW FREQ（無段階 20〜500 Hz）：現在 ${hz(p.lowHz)}`);
+      kMF = cf('midHz', CONT.mid, 'Freq', 'mid', () => `MID FREQ（無段階 150 Hz〜10 kHz）：現在 ${hz(p.midHz)}`);
+      kHF = cf('highHz', CONT.high, 'Freq', 'high', () => `HIGH FREQ（無段階 3〜20 kHz）：現在 ${hz(p.highHz)}`);
+      kLpf = cf('lpfHz', CONT.lpf, 'LPF', 'lpf', () => F().lpf ? `LPF（無段階・Classic+）：${hz(F().lpf)} より上をカット。右端で OFF` : 'LPF（無段階・Classic+）：OFF', (x) => x >= CONT.lpfOff);
+      if (!v84()) kLpf.classList.add('disabled');
+    }
+    const kLG = knob({ label: 'Gain', hl: hlOf('low'), min: -16, max: 16, step: 0.5, get: get('lowGain'), set: set('lowGain'), fmt: sdb, def: 0, desc: () => `LOW：${hz(F().low)} 以下を ${sdb(p.lowGain)}（シェルフ）` });
+    const kMG = knob({ label: 'Gain', hl: hlOf('mid'), min: -18, max: 18, step: 0.5, get: get('midGain'), set: set('midGain'), fmt: sdb, def: 0, desc: () => `MID：${hz(F().mid)} を中心に ${sdb(p.midGain)}（ベル）${v84() && !p.hiQ ? '・Classic+ の通常 Q では ±12 dB まで' : ''}` });
+    const kHG = knob({ label: 'Gain', hl: hlOf('high'), min: -16, max: 16, step: 0.5, get: get('highGain'), set: set('highGain'), fmt: sdb, def: 0, desc: () => `HIGH：${hz(F().high)} 以上を ${sdb(p.highGain)}（シェルフ）` });
+    const kOut = knob({ label: 'Output', min: -24, max: 12, step: 0.5, get: get('output'), set: set('output'), fmt: sdb, def: 0, desc: () => `OUTPUT：出力レベル ${sdb(p.output)}` });
+    const tMic = toggle('MIC', get('mic'), (x) => { p.mic = x; p.gain = x ? 50 : 0; changed(s); buildRack(); });
+    const tPh = toggle('Ø', get('phase'), set('phase'));
+    const tHiQ = toggle('HI-Q', get('hiQ'), set('hiQ'), hlOf('mid'), () => 'HI-Q（Classic+）：MID の帯域を狭くし、最大 ±18 dB に'); if (!v84()) tHiQ.classList.add('disabled');
+    const tEq = toggle('EQ IN', get('eqIn'), set('eqIn'));
+    face.querySelector('.controls').append(
+      group('PRE', hlOf('gain'), [kGain, col(tMic, tPh)]), group('HPF', hlOf('hpf'), [kHpf]),
+      group('LOW', hlOf('low'), [kLF, kLG]), group('MID', hlOf('mid'), [kMF, kMG, col(tHiQ)]),
+      group('HIGH', hlOf('high'), [kHF, kHG]), group('LPF', hlOf('lpf'), [kLpf]), group('', null, [col(tEq), kOut]));
+    face.querySelector('.variant').addEventListener('change', (e) => { p.variant = +e.target.value; if (!v84()) { p.lpf = 0; p.hiQ = 0; p.highFreq = 0; } else p.highFreq = 1; changed(s); buildRack(); });
+  },
+  fet76(s, face) {
+    const p = s.p, set = (k) => (v) => { p[k] = v; changed(s); }, get = (k) => () => p[k];
+    const atkUs = () => Math.round(800 * Math.pow(20 / 800, (p.attack - 1) / 6));
+    const relMs = () => Math.round(1100 * Math.pow(50 / 1100, (p.release - 1) / 6));
+    const dyn = { uid: s.uid, band: 'dyn' };
+    const kIn = knob({ label: 'Input', hl: dyn, min: -12, max: 48, step: 0.5, get: get('input'), set: set('input'), fmt: sdb, def: 6, desc: () => 'INPUT：入力を上げるほど深くかかります（スレッショルド固定の FET コンプ方式）。全帯域に作用' });
+    const kOut = knob({ label: 'Output', hl: dyn, min: -24, max: 24, step: 0.5, get: get('output'), set: set('output'), fmt: sdb, def: 0, desc: () => `OUTPUT：出力レベル${p.analog ? '。上げるほど歪みも増えます' : ''}` });
+    const kA = knob({ label: 'Attack', hl: dyn, min: 1, max: 7, step: 0.1, get: get('attack'), set: set('attack'), fmt: () => atkUs() + ' µs', def: 3, desc: () => `ATTACK：7 が最速（20 µs）、1 が最遅（800 µs）。現在 ${atkUs()} µs` });
+    const kR = knob({ label: 'Release', hl: dyn, min: 1, max: 7, step: 0.1, get: get('release'), set: set('release'), fmt: () => relMs() + ' ms', def: 5, desc: () => `RELEASE：7 が最速（50 ms）、1 が最遅（1.1 s）。現在 ${relMs()} ms` });
+    const rbox = document.createElement('div'); rbox.className = 'ratio'; rbox.innerHTML = '<div class="lab">RATIO</div>';
+    const rbs = SPEC.fet76.ratios.map((r, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn tbtn'; b.textContent = r === 'ALL' ? 'ALL' : r + ':1';
+      b.title = r === 'ALL' ? '全ボタン押し：過圧縮でアグレッシブな歪み' : `${r}:1`;
+      b.addEventListener('click', () => { p.ratio = i; rbs.forEach((x, j) => x.classList.toggle('on', j === i)); changed(s); }); rbox.append(b); return b; });
+    rbs.forEach((x, j) => x.classList.toggle('on', j === p.ratio));
+    face.querySelector('.variant').addEventListener('change', (e) => { p.variant = +e.target.value; changed(s); });
+    face.querySelector('.controls').append(group('', null, [kIn, kOut]), group('', null, [kA, kR]), rbox, dynDisplay(s.uid));
+  },
+  opto3a(s, face) {
+    const p = s.p, set = (k) => (v) => { p[k] = v; changed(s); }, get = (k) => () => p[k];
+    const dyn = { uid: s.uid, band: 'dyn' }, sc = { uid: s.uid, band: 'sc' };
+    const kPR = knob({ label: 'Peak Red.', hl: dyn, min: 0, max: 100, step: 1, get: get('peak'), set: set('peak'), def: 40, desc: () => 'PEAK REDUCTION：かかり具合（スレッショルド）。上げるほど深く圧縮' });
+    const kG = knob({ label: 'Gain', hl: dyn, min: 0, max: 100, step: 1, get: get('gain'), set: set('gain'), def: 50, fmt: (v) => sdb((v - 50) * 0.5), desc: () => `GAIN：メイクアップゲイン ${sdb((p.gain - 50) * 0.5)}` });
+    const kHF = knob({ label: 'HF Emph', hl: sc, min: 0, max: 100, step: 1, get: get('hf'), set: set('hf'), def: 0, fmt: (v) => v ? '+' + (v / 10).toFixed(1) + ' dB' : 'FLAT',
+      desc: () => `HF EMPH：検出回路だけに ${hz(VR.scFreq3a(p))} 以上のシェルフ（+${(p.hf / 10).toFixed(1)} dB）を足し、高域で強めに反応させます。音そのものの EQ は変わりません（点線）` });
+    const kids = [kHF];
+    if (p.cont) kids.push(knob({ label: 'Freq', hl: sc, log: true, min: CONT.sc[0], max: CONT.sc[1], get: get('scHz'), set: set('scHz'), def: 2500, fmt: hz,
+      desc: () => `EMPH FREQ（無段階）：検出回路のシェルフ周波数 ${hz(p.scHz)}。実機は固定` }));
+    const bC = document.createElement('button'), bL = document.createElement('button');
+    [bC, bL].forEach((b, i) => { b.type = 'button'; b.className = 'btn tbtn'; b.textContent = i ? 'LIMIT' : 'COMP';
+      b.addEventListener('click', () => { p.limit = i; bC.classList.toggle('on', !p.limit); bL.classList.toggle('on', !!p.limit); changed(s); }); });
+    bC.classList.toggle('on', !p.limit); bL.classList.toggle('on', !!p.limit);
+    face.querySelector('.controls').append(group('', null, [kPR, kG]), col(bC, bL), group('SIDECHAIN', sc, kids), dynDisplay(s.uid));
+  },
+};
+
+// ------------------------------------------------------------------ dynamics mini display
+function dynDisplay(uid) {
+  const d = document.createElement('div'); d.className = 'dyn'; d.dataset.dyn = uid;
+  d.innerHTML = `<canvas width="184" height="184" aria-label="入出力カーブ"></canvas>
+    <div class="grm">GAIN REDUCTION<span class="grnum">0.0</span><div class="grbar"><i></i></div><span>dB</span></div>`;
+  return d;
+}
+function refreshDisplays() {
+  for (const s of state.slots) {
+    if (s.type === 'pre73') continue;
+    const cv = document.querySelector(`.dyn[data-dyn="${s.uid}"] canvas`); if (!cv) continue;
+    const m = s.type === 'fet76' ? new VR.Fet76(48000) : new VR.Opto3A(48000); m.setParams(s.p);
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height, lo = -48, hi = 0;
+    const X = (db) => (db - lo) / (hi - lo) * W, Y = (db) => H - (db - lo) / (hi - lo) * H;
+    g.clearRect(0, 0, W, H); g.strokeStyle = '#353a44'; g.lineWidth = 1;
+    for (let d = lo; d <= hi; d += 12) { g.beginPath(); g.moveTo(X(d), 0); g.lineTo(X(d), H); g.moveTo(0, Y(d)); g.lineTo(W, Y(d)); g.stroke(); }
+    g.setLineDash([4, 4]); g.beginPath(); g.moveTo(X(lo), Y(lo)); g.lineTo(X(hi), Y(hi)); g.stroke(); g.setLineDash([]);
+    g.strokeStyle = colorOf('dyn'); g.lineWidth = 3; g.beginPath();
+    for (let i = 0; i <= 96; i++) {
+      const xin = lo + i / 96 * (hi - lo);
+      const det = s.type === 'fet76' ? xin + s.p.input : xin + s.p.peak * 0.4;
+      const o = Math.max(lo, xin - m.gain(det));
+      i ? g.lineTo(X(xin), Y(o)) : g.moveTo(X(xin), Y(o));
+    }
+    g.stroke();
+  }
+}
+
+// ------------------------------------------------------------------ circuit panel (BIAS AMP / Axe-Fx style)
+const CIRCUIT_KEYS = {
+  pre73: { comps: ['inX', 'amp', 'outX'], knobs: ['bias', 'headroom', 'iron', 'age', 'noise'] },
+  fet76: { comps: ['fet', 'inX', 'out'], knobs: ['bias', 'headroom', 'detector', 'iron', 'age', 'noise'] },
+  opto3a: { comps: ['cell', 'amp', 'outX'], knobs: ['memory', 'headroom', 'iron', 'age', 'noise'] },
+};
+const KNOB_SPEC = {
+  bias: { label: 'Bias', min: -100, max: 100, step: 1, def: 0, fmt: (v) => (v > 0 ? '+' : '') + v },
+  headroom: { label: 'Headroom', min: 18, max: 30, step: 0.5, def: 24, fmt: (v) => v + ' V' },
+  iron: { label: 'Iron', min: 0, max: 200, step: 1, def: 100, fmt: (v) => v + ' %' },
+  age: { label: 'Age', min: 0, max: 100, step: 1, def: 0, fmt: (v) => v ? v + ' %' : 'NEW' },
+  noise: { label: 'Noise', min: 0, max: 100, step: 1, def: 0, fmt: (v) => v ? String(v) : 'OFF' },
+  detector: { label: 'Detector', min: 0, max: 100, step: 1, def: 50, fmt: (v) => String(v) },
+  memory: { label: 'Memory', min: 0, max: 100, step: 1, def: 50, fmt: (v) => String(v) },
+};
+function compName(type, key, i) { return VR.CIRCUIT[type][key][i].name; }
+function buildCircuit(s) {
+  const p = s.p, K = CIRCUIT_KEYS[s.type], hl = { uid: s.uid, band: 'analog' };
+  const el = document.createElement('div'); el.className = 'circuit' + (p.analog ? '' : ' disabled');
+  el.innerHTML = `<h3>CIRCUIT <span class="note">${p.analog ? '部品を替えると倍音と帯域のクセ（点線）が変わります' : 'ANALOG がオフのため回路は無効です（オンにすると反映されます）'}</span>
+    <button class="btn small reset" type="button">回路を初期化</button></h3>`;
+  const comps = document.createElement('div'); comps.className = 'comps';
+  for (const key of K.comps) {
+    const list = VR.CIRCUIT[s.type][key];
+    const id = `c-${s.uid}-${key}`;
+    const lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = COMP_LABEL[key];
+    const sel = document.createElement('select'); sel.className = 'btn small'; sel.id = id;
+    sel.innerHTML = list.map((c, i) => {
+      let name = c.name;
+      if (s.type === 'fet76' && i === 0) { const r = VR.resolve76(Object.assign({}, p, { [key]: 0 })); name = `モデル標準（${r[key].name}）`; }
+      return `<option value="${i}" ${(p[key] | 0) === i ? 'selected' : ''}>${name}</option>`;
+    }).join('');
+    const desc = () => `${COMP_LABEL[key]}：${compName(s.type, key, p[key] | 0)} — ${COMP_DESC[s.type][key][p[key] | 0]}`;
+    sel.addEventListener('change', () => { p[key] = +sel.value; changed(s); setHint(hl, desc()); });
+    sel.addEventListener('pointerenter', () => setHint(hl, desc())); sel.addEventListener('focus', () => setHint(hl, desc()));
+    comps.append(lab, sel);
+  }
+  const knobs = document.createElement('div'); knobs.className = 'group';
+  for (const key of K.knobs) {
+    const k = KNOB_SPEC[key];
+    knobs.append(knob({ label: k.label, hl, min: k.min, max: k.max, step: k.step, def: k.def, fmt: k.fmt,
+      get: () => (p[key] === undefined ? k.def : p[key]), set: (v) => { p[key] = v; changed(s); }, desc: () => KNOB_DESC[key] + `（現在 ${k.fmt(p[key] === undefined ? k.def : p[key])}）` }));
+  }
+  const harm = document.createElement('div'); harm.className = 'harm'; harm.dataset.harm = s.uid;
+  harm.innerHTML = '<canvas width="600" height="260" aria-label="倍音のグラフ"></canvas>';
+  el.append(comps, knobs, harm);
+  el.querySelector('.reset').addEventListener('click', () => {
+    const d = VR.DEFAULTS[s.type]; for (const key of [...K.comps, ...K.knobs]) p[key] = d[key];
+    changed(s); buildRack(); setHint(hl, '回路を初期値に戻しました。');
+  });
+  requestHarm(s.uid);
+  return el;
+}
+const harmTimers = {};
+function requestHarm(uid) { clearTimeout(harmTimers[uid]); harmTimers[uid] = setTimeout(() => drawHarm(uid), 60); }
+function drawHarm(uid) {
+  const s = slotOf(uid); const cv = document.querySelector(`.harm[data-harm="${uid}"] canvas`); if (!s || !cv) return;
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height; g.clearRect(0, 0, W, H);
+  const rows = [100, 1000].map((f) => ({ f, r: VR.harmonics(s.type, s.p, 48000, f, -12) }));
+  const top = 64, bottom = H - 30, lo = -80;
+  g.font = '20px IBM Plex Mono, monospace'; g.textBaseline = 'middle';
+  g.fillStyle = '#9097a5'; g.textAlign = 'left'; g.fillText('倍音（入力 −12 dBFS）', 8, 14);
+  rows.forEach(({ f, r }, gi) => {
+    const x0 = 16 + gi * 300, bw = 30, gap = 14;
+    g.fillStyle = '#e7e9ee'; g.textAlign = 'left';
+    g.fillText(`${f >= 1000 ? '1 kHz' : '100 Hz'}  THD ${r.thd < 10 ? r.thd.toFixed(2) : r.thd.toFixed(1)} %`, x0, 44);
+    r.h.forEach((db, k) => {
+      const x = x0 + k * (bw + gap), t = Math.max(0, Math.min(1, (db - lo) / -lo)), y = bottom - t * (bottom - top);
+      g.fillStyle = '#2c313a'; g.fillRect(x, top, bw, bottom - top);
+      g.fillStyle = (k % 2 === 0) ? '#e8a33a' : '#4cb6d6'; g.fillRect(x, y, bw, bottom - y);
+      g.fillStyle = '#9097a5'; g.textAlign = 'center'; g.font = '17px IBM Plex Mono, monospace';
+      g.fillText('H' + (k + 2), x + bw / 2, bottom + 15); g.font = '20px IBM Plex Mono, monospace';
+    });
+  });
+  g.textAlign = 'right'; g.fillStyle = '#e8a33a'; g.fillText('偶数', W - 70, 14); g.fillStyle = '#4cb6d6'; g.fillText('奇数', W - 10, 14);
+}
+
+// ------------------------------------------------------------------ rack rendering / editing
+function buildRack() {
+  const rack = $('#rack'); rack.innerHTML = '';
+  const n = state.slots.length;
+  $('#count').textContent = `${n} 台（最大 ${MAX_SLOTS}）`;
+  document.querySelectorAll('[data-add]').forEach((b) => (b.disabled = n >= MAX_SLOTS));
+  if (!n) rack.innerHTML = '<div class="empty">モジュールがありません。上の「＋」ボタンで追加してください。</div>';
+  state.slots.forEach((s, idx) => {
+    const info = MOD_INFO[s.type], mod = document.createElement('article'), p = s.p;
+    mod.className = 'mod' + (s.on ? '' : ' off'); mod.dataset.uid = s.uid;
+    const variants = SPEC[s.type].variants;
+    const hasCont = s.type === 'pre73' || s.type === 'opto3a';
+    mod.innerHTML = `
+      <div class="rail">
+        <div class="slot" title="信号の順番">${idx + 1}</div>
+        <div class="handle" draggable="true" title="ドラッグして並べ替え" aria-hidden="true">⠿</div>
+        <button class="btn mv up" type="button" aria-label="上へ" ${idx === 0 ? 'disabled' : ''}>▲</button>
+        <button class="btn mv dn" type="button" aria-label="下へ" ${idx === n - 1 ? 'disabled' : ''}>▼</button>
+      </div>
+      <div class="face">
+        <div class="mod-head">
+          <button class="btn pwr ${s.on ? 'on' : ''}" type="button" aria-label="オン／オフ" aria-pressed="${s.on}">⏻</button>
+          <span class="mod-title">${info.title}</span><span class="mod-sub">${info.sub}</span>
+          ${variants.length > 1 ? `<label class="note" for="var-${s.uid}">モデル</label><select class="btn variant" id="var-${s.uid}">${(SPEC[s.type].labels || variants).map((v, i) => `<option value="${i}" ${p.variant === i ? 'selected' : ''}>${v}</option>`).join('')}</select>` : ''}
+          <select class="btn small modpreset" aria-label="モジュールプリセット"><option value="">プリセット…</option>${PRESETS.module[s.type].map((x, i) => `<option value="${i}">${x.name}</option>`).join('')}</select>
+          <span class="hdr-tg"></span>
+          <button class="btn small dup" type="button" ${n >= MAX_SLOTS ? 'disabled' : ''}>複製</button>
+          <button class="btn small del" type="button">削除</button>
+        </div>
+        <div class="controls"></div>
+      </div>`;
+    builders[s.type](s, mod.querySelector('.face'));
+    const hdr = mod.querySelector('.hdr-tg');
+    const anaHl = { uid: s.uid, band: 'analog' };
+    const anaDesc = () => (p.analog ? 'ANALOG オン：' : 'ANALOG オフ（クリーン）。オンにすると → ') + (s.type === 'fet76' ? ANALOG_DESC.fet76[p.variant] : ANALOG_DESC[s.type]);
+    hdr.append(toggle('ANALOG', () => p.analog, (v) => { p.analog = v; changed(s); }, anaHl, anaDesc, 'analog'));
+    const cBtn = toggle('回路', () => state.open[s.uid], (v) => { state.open[s.uid] = !!v; buildRack(); }, anaHl,
+      () => '回路：部品の種類や BIAS・HEADROOM・IRON などの挙動を編集します。倍音のグラフで汚れ具合が見えます', 'analog');
+    hdr.prepend(cBtn);
+    if (hasCont) hdr.append(toggle('無段階', () => p.cont, (v) => {
+      if (v && s.type === 'pre73') { const F = VR.freqs73(p); Object.assign(p, { hpfHz: F.hpf || CONT.hpf[0], lowHz: F.low, midHz: F.mid, highHz: F.high, lpfHz: F.lpf || CONT.lpf[1] }); }
+      p.cont = v; changed(s); buildRack();
+      setHint(null, v ? '無段階モード：周波数つまみが連続的に回せます（点線の縁のつまみ）。実機にはない拡張機能です。' : '固定ポイント（実機どおり）に戻しました。');
+    }));
+    if (state.open[s.uid]) mod.querySelector('.face').append(buildCircuit(s));
+    mod.querySelector('.modpreset').addEventListener('change', (e) => {
+      const pr = PRESETS.module[s.type][+e.target.value]; if (!pr) return;
+      s.p = Object.assign({}, VR.DEFAULTS[s.type], JSON.parse(JSON.stringify(pr.p)));
+      post({ t: 'params', uid: s.uid, p: s.p }); save(); buildRack();
+      setHint(null, `${slotNo(s)} 番 ${MOD_INFO[s.type].title} にプリセット「${pr.name}」を読み込みました。`);
+    });
+    mod.querySelector('.pwr').addEventListener('click', () => { s.on = !s.on; post({ t: 'on', uid: s.uid, v: s.on }); save(); buildRack(); });
+    mod.querySelector('.up').addEventListener('click', () => move(idx, idx - 1));
+    mod.querySelector('.dn').addEventListener('click', () => move(idx, idx + 1));
+    mod.querySelector('.dup').addEventListener('click', () => { const c = newSlot(s.type, JSON.parse(JSON.stringify(p))); c.on = s.on; state.slots.splice(idx + 1, 0, c); restructure(); });
+    mod.querySelector('.del').addEventListener('click', () => { state.slots.splice(idx, 1); restructure(); });
+    const h = mod.querySelector('.handle');
+    h.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', s.uid); e.dataTransfer.effectAllowed = 'move'; mod.classList.add('dragging'); });
+    h.addEventListener('dragend', () => mod.classList.remove('dragging'));
+    mod.addEventListener('dragover', (e) => { e.preventDefault(); mod.classList.add('drag-over'); });
+    mod.addEventListener('dragleave', () => mod.classList.remove('drag-over'));
+    mod.addEventListener('drop', (e) => { e.preventDefault(); mod.classList.remove('drag-over'); const from = state.slots.findIndex((x) => x.uid === e.dataTransfer.getData('text/plain')); if (from >= 0) move(from, idx); });
+    rack.append(mod);
+  });
+  refreshDisplays(); drawGraph();
+}
+function restructure() { pushSlots(); save(); buildRack(); }
+function move(from, to) {
+  if (to < 0 || to >= state.slots.length || from === to) return;
+  const [m] = state.slots.splice(from, 1); state.slots.splice(to, 0, m); restructure();
+}
+document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => {
+  if (state.slots.length >= MAX_SLOTS) return;
+  state.slots.push(newSlot(b.dataset.add)); restructure();
+  const last = $('#rack').lastElementChild; if (last && last.scrollIntoView) last.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}));
+(() => {
+  const sel = $('#rackPreset');
+  PRESETS.rack.forEach((r, i) => { const o = document.createElement('option'); o.value = i; o.textContent = r.name; sel.append(o); });
+  sel.addEventListener('change', () => {
+    const r = PRESETS.rack[+sel.value]; if (!r) return;
+    state.slots = r.slots.map((x) => newSlot(x.type, Object.assign({}, x.preset ? modPreset(x.type, x.preset) : {}, x.p || {})));
+    state.open = {}; restructure(); sel.value = '';
+    setHint(null, `ラックプリセット「${r.name}」を読み込みました（${r.slots.length} 台）。`);
+  });
+})();
+const setAllAnalog = (v) => { state.slots.forEach((s) => { s.p.analog = v; }); restructure(); setHint(null, v ? '全モジュールの ANALOG をオンにしました。' : '全モジュールの ANALOG をオフにしました（完全にクリーンな処理）。'); };
+$('#allAnalogOn').addEventListener('click', () => setAllAnalog(1));
+$('#allAnalogOff').addEventListener('click', () => setAllAnalog(0));
+document.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => { state.range = +b.dataset.range; save(); syncRange(); drawGraph(); }));
+const syncRange = () => document.querySelectorAll('[data-range]').forEach((b) => b.classList.toggle('on', +b.dataset.range === state.range));
+
+// ------------------------------------------------------------------ frequency map
+const G = $('#graph'), gx = G.getContext('2d');
+const NF = 256, FREQS = Array.from({ length: NF }, (_, i) => 20 * Math.pow(1000, i / (NF - 1)));
+let specBuf = null;
+const curveCache = new Map();
+function curvesFor(s) {
+  const key = s.type + JSON.stringify(s.p);
+  const c = curveCache.get(s.uid); if (c && c.key === key) return c;
+  const out = { key, analog: VR.responseAnalog(s.type, s.p, 48000, FREQS) };
+  if (s.type === 'pre73') out.r73 = VR.response73(s.p, 48000, FREQS);
+  if (s.type === 'opto3a') out.sc = VR.response3aSC(s.p, 48000, FREQS);
+  curveCache.set(s.uid, out); return out;
+}
+function drawGraph() {
+  const dpr = window.devicePixelRatio || 1, W = G.clientWidth, H = G.clientHeight;
+  if (!W) return;
+  if (G.width !== W * dpr || G.height !== H * dpr) { G.width = W * dpr; G.height = H * dpr; }
+  const g = gx; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const padL = 34, padR = 8, padT = 8, padB = 18, w = W - padL - padR, h = H - padT - padB, R = state.range;
+  const X = (f) => padL + Math.log(f / 20) / Math.log(1000) * w, Y = (db) => padT + (1 - (Math.max(-R, Math.min(R, db)) + R) / (2 * R)) * h;
+  const line = (arr) => { g.beginPath(); FREQS.forEach((f, i) => i ? g.lineTo(X(f), Y(arr[i])) : g.moveTo(X(f), Y(arr[i]))); };
+  if (analyser && playing) {
+    const n = analyser.frequencyBinCount; if (!specBuf || specBuf.length !== n) specBuf = new Float32Array(n);
+    analyser.getFloatFrequencyData(specBuf); const sr = ctx.sampleRate;
+    g.beginPath(); g.moveTo(X(20), padT + h);
+    for (let i = 0; i < NF; i++) { const f = FREQS[i], bin = Math.min(n - 1, Math.round(f / (sr / 2) * n)); const v = Math.max(-100, Math.min(-10, specBuf[bin]));
+      g.lineTo(X(f), padT + h - (v + 100) / 90 * h); }
+    g.lineTo(X(20000), padT + h); g.closePath(); g.fillStyle = 'rgba(91,100,116,.22)'; g.fill();
+  }
+  // grid
+  g.font = '10.5px IBM Plex Mono, monospace'; g.textBaseline = 'middle'; g.lineWidth = 1;
+  for (const f of [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]) { g.strokeStyle = '#2c313a'; g.beginPath(); g.moveTo(X(f), padT); g.lineTo(X(f), padT + h); g.stroke();
+    g.fillStyle = '#7d8492'; g.textAlign = 'center'; g.fillText(f >= 1000 ? f / 1000 + 'k' : f, X(f), padT + h + 10); }
+  const step = R >= 20 ? 6 : R >= 6 ? 2 : 0.5;
+  for (let d = Math.ceil((-R + 1e-6) / step) * step; d < R; d += step) { const dd = +d.toFixed(2); g.strokeStyle = Math.abs(dd) < 1e-6 ? '#4a515e' : '#2c313a'; g.beginPath(); g.moveTo(padL, Y(dd)); g.lineTo(padL + w, Y(dd)); g.stroke();
+    g.fillStyle = '#7d8492'; g.textAlign = 'right'; g.fillText((dd > 0 ? '+' : '') + dd, padL - 5, Y(dd)); }
+
+  const total = new Array(NF).fill(0), analogSum = new Array(NF).fill(0);
+  const n73 = state.slots.filter((s) => s.type === 'pre73').length;
+  let anyAnalog = false;
+  const markers = [];
+  for (const s of state.slots) {
+    const c = curvesFor(s), active = s.on && !state.bypass;
+    if (active && s.p.analog) { anyAnalog = true; c.analog.forEach((d, i) => { analogSum[i] += d; total[i] += d; }); }
+    if (s.type === 'pre73') {
+      const p = s.p;
+      if (active) c.r73.total.forEach((d, i) => (total[i] += d));
+      for (const b of ['hpf', 'low', 'mid', 'high', 'lpf']) {
+        const arr = c.r73.bands[b]; if (!arr || arr.every((v) => Math.abs(v) < 0.05)) continue;
+        const eqBand = b === 'low' || b === 'mid' || b === 'high', on = active && (p.eqIn || !eqBand);
+        const hl = highlight && highlight.uid === s.uid && highlight.band === b;
+        const dim = highlight && !hl;
+        g.beginPath(); g.moveTo(X(FREQS[0]), Y(0)); FREQS.forEach((f, i) => g.lineTo(X(f), Y(arr[i]))); g.lineTo(X(FREQS[NF - 1]), Y(0)); g.closePath();
+        g.globalAlpha = on ? (hl ? 0.45 : dim ? 0.06 : 0.14) : 0.04; g.fillStyle = colorOf(b); g.fill();
+        g.globalAlpha = on ? (hl ? 1 : dim ? 0.3 : 0.7) : 0.2; g.strokeStyle = colorOf(b); g.lineWidth = hl ? 2.5 : 1.5; line(arr); g.stroke(); g.globalAlpha = 1;
+      }
+      const F = VR.freqs73(p);
+      for (const [b, name] of [['hpf', 'HPF'], ['low', 'LOW'], ['mid', 'MID'], ['high', 'HIGH'], ['lpf', 'LPF']])
+        if (F[b] && active) markers.push({ b, f: F[b], name: name + (n73 > 1 ? '·' + slotNo(s) : ''), uid: s.uid });
+    }
+    if (s.type === 'opto3a') {
+      const hl = highlight && highlight.uid === s.uid && highlight.band === 'sc';
+      if (s.p.hf > 0 || hl) {
+        g.setLineDash([6, 4]); g.strokeStyle = colorOf('sc'); g.lineWidth = hl ? 2.5 : 1.5; g.globalAlpha = active ? (highlight && !hl ? 0.35 : 1) : 0.3;
+        line(c.sc); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+        if (hl) { g.fillStyle = colorOf('sc'); g.textAlign = 'right'; g.fillText(`Opto·${slotNo(s)} 検出回路の感度`, X(18000), Y(c.sc[NF - 1]) - 10); }
+      }
+    }
+  }
+  // analog: sum of all modules (dash-dot), or the highlighted module alone (filled)
+  const anaHl = highlight && highlight.band === 'analog' ? slotOf(highlight.uid) : null;
+  if (anaHl) {
+    const arr = curvesFor(anaHl).analog.map((d) => anaHl.p.analog ? d : d);
+    const own = VR.responseAnalog(anaHl.type, Object.assign({}, anaHl.p, { analog: 1 }), 48000, FREQS);
+    g.beginPath(); g.moveTo(X(FREQS[0]), Y(0)); FREQS.forEach((f, i) => g.lineTo(X(f), Y(own[i]))); g.lineTo(X(FREQS[NF - 1]), Y(0)); g.closePath();
+    g.globalAlpha = 0.3; g.fillStyle = colorOf('analog'); g.fill(); g.globalAlpha = 1;
+    g.setLineDash([8, 3, 2, 3]); g.strokeStyle = colorOf('analog'); g.lineWidth = 2.5; line(own); g.stroke(); g.setLineDash([]);
+    const peakI = own.reduce((bi, v, i) => Math.abs(v) > Math.abs(own[bi]) ? i : bi, 0);
+    g.fillStyle = colorOf('analog'); g.textAlign = 'left'; g.font = '600 12px IBM Plex Mono, monospace';
+    g.fillText(`${slotNo(anaHl)} 番 ${MOD_INFO[anaHl.type].title} のアナログ特性${anaHl.p.analog ? '' : '（現在オフ：オンにした場合）'}`, padL + 8, padT + 10);
+    g.font = '10.5px IBM Plex Mono, monospace'; void peakI;
+    void arr;
+  } else if (anyAnalog) {
+    g.setLineDash([8, 3, 2, 3]); g.strokeStyle = colorOf('analog'); g.lineWidth = 1.8; g.globalAlpha = highlight ? 0.4 : 0.95; line(analogSum); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+  }
+  // total of the whole rack
+  g.strokeStyle = state.bypass ? '#6b7280' : '#ffffff'; g.lineWidth = 2.5; if (state.bypass) g.setLineDash([3, 4]);
+  g.globalAlpha = anaHl ? 0.35 : 1; line(state.bypass ? new Array(NF).fill(0) : total); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+  const totalAt = (f) => { let i = FREQS.findIndex((x) => x >= f); if (i < 0) i = NF - 1; return total[i]; };
+  for (const m of markers) {
+    const x = X(m.f), y = Y(totalAt(m.f)), hl = highlight && highlight.uid === m.uid && highlight.band === m.b;
+    if (highlight && !hl && highlight.band !== 'analog') g.globalAlpha = 0.35;
+    g.fillStyle = colorOf(m.b); g.beginPath(); g.arc(x, y, hl ? 7 : 5, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#15171b'; g.lineWidth = 2; g.stroke();
+    if (hl || !highlight) { g.font = (hl ? '600 12px' : '10.5px') + ' IBM Plex Mono, monospace'; g.textAlign = 'center';
+      g.fillText(`${m.name} ${m.f >= 1000 ? +(m.f / 1000).toFixed(1) + 'k' : Math.round(m.f)}`, x, y + (y > padT + h * 0.6 ? -14 : 14)); g.font = '10.5px IBM Plex Mono, monospace'; }
+    g.globalAlpha = 1;
+  }
+  g.fillStyle = '#9097a5'; g.textAlign = 'left';
+  if (state.bypass) g.fillText('A/B：原音を再生中（ラック全体をバイパス）', padL + 8, padT + 10);
+  else if (anyAnalog && R >= 20 && !anaHl) g.fillText('ANALOG の帯域変化は ±1 dB 前後です。縦軸 ±2 dB で拡大して見られます', padL + 8, padT + 10);
+}
+G.addEventListener('pointermove', (e) => {
+  const r = G.getBoundingClientRect(), f = 20 * Math.pow(1000, (e.clientX - r.left - 34) / (r.width - 42));
+  if (f < 20 || f > 20000) return;
+  let best = null, bd = 1e9;
+  for (const s of state.slots) if (s.type === 'pre73' && s.on) {
+    const F = VR.freqs73(s.p);
+    for (const b of ['hpf', 'low', 'mid', 'high', 'lpf']) if (F[b]) { const d = Math.abs(Math.log(f / F[b])); if (d < bd) { bd = d; best = { uid: s.uid, band: b, s }; } }
+  }
+  if (!best) return;
+  const names = { hpf: 'HPF つまみ', low: 'LOW の FREQ / GAIN', mid: 'MID の FREQ / GAIN', high: 'HIGH の FREQ / GAIN', lpf: 'LPF つまみ（Classic+）' };
+  setHint({ uid: best.uid, band: best.band }, `<b>${f >= 1000 ? (f / 1000).toFixed(2) + ' kHz' : Math.round(f) + ' Hz'}</b> 付近を動かすのは → ${slotNo(best.s)} 番の Pre / EQ の ${names[best.band]}`);
+});
+G.addEventListener('pointerleave', () => setHint(null));
+
+// ------------------------------------------------------------------ animation loop
+function frame() {
+  $('#mIn').style.width = pct(meterState.in) + '%'; $('#mOut').style.width = pct(meterState.out) + '%';
+  for (const s of state.slots) {
+    if (s.type === 'pre73') continue;
+    const d = document.querySelector(`.dyn[data-dyn="${s.uid}"]`); if (!d) continue;
+    const gr = s.on && !state.bypass ? (meterState.gr[s.uid] || 0) : 0;
+    d.querySelector('.grnum').textContent = '−' + gr.toFixed(1);
+    d.querySelector('.grbar i').style.width = Math.min(100, gr / 20 * 100) + '%';
+  }
+  if (playing) drawGraph();
+  meterState.in *= 0.92; meterState.out *= 0.92;
+  requestAnimationFrame(frame);
+}
+window.addEventListener('resize', drawGraph);
+syncRange(); buildRack(); setHint(null); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
